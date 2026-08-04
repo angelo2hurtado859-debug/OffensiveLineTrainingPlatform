@@ -1,0 +1,10 @@
+{
+  "description": "This platform enhances offensive linemen's skills through interactive simulations, playbook training, and progress tracking, fostering game-day readiness.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
