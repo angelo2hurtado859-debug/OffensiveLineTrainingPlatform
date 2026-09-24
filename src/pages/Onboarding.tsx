@@ -1,61 +1,131 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { useStore, Role } from '../store';
+import { useStore } from '../store';
+import type { Role } from '../store';
 import { Button, Input, Card } from '../components/ui';
 import { ClipboardList, Users } from 'lucide-react';
 
 export default function Onboarding() {
-  const { user, setRole, createTeam, joinTeam, updateProfile } = useStore();
+  const {
+    user,
+    team,
+    setRole,
+    createTeam,
+    joinTeam,
+    updateProfile,
+  } = useStore();
+
   const navigate = useNavigate();
+
   const [step, setStep] = useState(1);
   const [teamName, setTeamName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
-  
-  // Player profile state
-  const [height, setHeight] = useState<string>('');
-  const [weight, setWeight] = useState<string>('');
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
   const [positions, setPositions] = useState<string[]>(['LT']);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  if (!user) {
-    navigate('/');
+  useEffect(() => {
+    if (!user) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    if (team) {
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
+    if (user.role) {
+      setStep(2);
+    }
+  }, [user, team, navigate]);
+
+  if (!user || team) {
     return null;
   }
 
-  const handleRoleSelect = (selectedRole: Role) => {
-    setRole(selectedRole);
-    setStep(2);
+  const handleRoleSelect = async (role: Role) => {
+    try {
+      setError('');
+      setLoading(true);
+
+      await setRole(role);
+      setStep(2);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || 'Could not set your role.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCoachSubmit = (e: React.FormEvent) => {
+  const handleCoachSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    createTeam(teamName || 'My Team');
-    navigate('/dashboard');
+
+    if (!teamName.trim()) {
+      setError('Team name is required.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      await createTeam(teamName.trim());
+      navigate('/dashboard', { replace: true });
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || 'Could not create team.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePlayerSubmit = (e: React.FormEvent) => {
+  const handlePlayerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteCode) {
+
+    if (!inviteCode.trim()) {
       setError('Team invite code is required.');
       return;
     }
-    const success = joinTeam(inviteCode);
-    if (!success) {
-      setError('Invalid invite code. Try MEHS-12345');
+
+    if (positions.length === 0) {
+      setError('Select at least one position.');
       return;
     }
-    updateProfile({ 
-      height: height ? parseInt(height) : undefined, 
-      weight: weight ? parseInt(weight) : undefined, 
-      positions 
-    });
-    navigate('/dashboard');
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const success = await joinTeam(inviteCode);
+
+      if (!success) {
+        setError('Invalid team code or you are already on a team.');
+        return;
+      }
+
+      await updateProfile({
+        height: height ? Number(height) : undefined,
+        weight: weight ? Number(weight) : undefined,
+        positions,
+      });
+
+      navigate('/dashboard', { replace: true });
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || 'Failed to join team.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const togglePosition = (pos: string) => {
-    setPositions(prev => 
-      prev.includes(pos) 
-        ? prev.filter(p => p !== pos) 
+    setPositions((prev) =>
+      prev.includes(pos)
+        ? prev.filter((p) => p !== pos)
         : [...prev, pos]
     );
   };
@@ -64,30 +134,58 @@ export default function Onboarding() {
     <div className="min-h-screen bg-background flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center text-3xl font-display font-bold text-foreground">
-          {step === 1 ? 'Select Your Role' : user.role === 'coach' ? 'Setup Your Team' : 'Complete Profile'}
+          {step === 1
+            ? 'Select Your Role'
+            : user.role === 'coach'
+              ? 'Create Your Team'
+              : 'Join Your Team'}
         </h2>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        {error && (
+          <div className="mb-4 text-red-400 text-sm font-medium">
+            {error}
+          </div>
+        )}
+
         {step === 1 && (
           <div className="grid grid-cols-1 gap-4">
-            <Card className="p-6 cursor-pointer hover:border-primary transition-colors flex items-center space-x-4" onClick={() => handleRoleSelect('coach')}>
+            <Card
+              className="p-6 cursor-pointer hover:border-primary transition-colors flex items-center space-x-4"
+              onClick={() => !loading && handleRoleSelect('coach')}
+            >
               <div className="p-3 bg-primary/10 rounded-full text-primary">
                 <ClipboardList size={24} />
               </div>
+
               <div>
-                <h3 className="font-display text-xl font-bold">Coach</h3>
-                <p className="text-sm text-muted-foreground">Create a team, build playbooks, track players.</p>
+                <h3 className="font-display text-xl font-bold">
+                  Coach
+                </h3>
+
+                <p className="text-sm text-muted-foreground">
+                  Create a team, build playbooks, track players.
+                </p>
               </div>
             </Card>
-            
-            <Card className="p-6 cursor-pointer hover:border-primary transition-colors flex items-center space-x-4" onClick={() => handleRoleSelect('player')}>
+
+            <Card
+              className="p-6 cursor-pointer hover:border-primary transition-colors flex items-center space-x-4"
+              onClick={() => !loading && handleRoleSelect('player')}
+            >
               <div className="p-3 bg-accent/20 rounded-full text-accent-foreground">
                 <Users size={24} />
               </div>
+
               <div>
-                <h3 className="font-display text-xl font-bold">Player</h3>
-                <p className="text-sm text-muted-foreground">Join a team, study the playbook, test your knowledge.</p>
+                <h3 className="font-display text-xl font-bold">
+                  Player
+                </h3>
+
+                <p className="text-sm text-muted-foreground">
+                  Join a team, study the playbook, test your knowledge.
+                </p>
               </div>
             </Card>
           </div>
@@ -96,11 +194,20 @@ export default function Onboarding() {
         {step === 2 && user.role === 'coach' && (
           <Card className="p-6 border-accent/50">
             <form onSubmit={handleCoachSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Team Name</label>
-                <Input value={teamName} onChange={e => setTeamName(e.target.value)} required placeholder="e.g. MEHS Varsity" className="bg-secondary/50" />
-              </div>
-              <Button type="submit" className="w-full">Create Team</Button>
+              <Input
+                value={teamName}
+                onChange={(e) => setTeamName(e.target.value)}
+                placeholder="Team Name"
+                required
+              />
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loading}
+              >
+                {loading ? 'Creating...' : 'Create Team'}
+              </Button>
             </form>
           </Card>
         )}
@@ -108,41 +215,53 @@ export default function Onboarding() {
         {step === 2 && user.role === 'player' && (
           <Card className="p-6 border-accent/50">
             <form onSubmit={handlePlayerSubmit} className="space-y-4">
-              {error && <div className="text-red-400 text-sm font-medium">{error}</div>}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Invite Code *</label>
-                <Input value={inviteCode} onChange={e => setInviteCode(e.target.value)} required placeholder="e.g. MEHS-12345" className="bg-secondary/50 font-mono" />
+              <Input
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="MEHS-12345"
+                required
+              />
+
+              <Input
+                type="number"
+                value={height}
+                onChange={(e) => setHeight(e.target.value)}
+                placeholder="Height"
+                min="1"
+              />
+
+              <Input
+                type="number"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+                placeholder="Weight"
+                min="1"
+              />
+
+              <div className="grid grid-cols-3 gap-2">
+                {['LT', 'LG', 'C', 'RG', 'RT', 'TE'].map((pos) => (
+                  <button
+                    key={pos}
+                    type="button"
+                    onClick={() => togglePosition(pos)}
+                    className={`py-2 rounded ${
+                      positions.includes(pos)
+                        ? 'bg-primary text-white'
+                        : 'bg-secondary'
+                    }`}
+                  >
+                    {pos}
+                  </button>
+                ))}
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Height (inches)</label>
-                  <Input type="number" min="60" max="84" value={height} onChange={e => setHeight(e.target.value)} placeholder="e.g. 74" className="bg-secondary/50" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Weight (lbs)</label>
-                  <Input type="number" min="150" max="400" value={weight} onChange={e => setWeight(e.target.value)} placeholder="e.g. 285" className="bg-secondary/50" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Positions (Select all that apply)</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['LT', 'LG', 'C', 'RG', 'RT', 'TE'].map(pos => (
-                    <button
-                      key={pos}
-                      type="button"
-                      onClick={() => togglePosition(pos)}
-                      className={`py-2 px-3 rounded text-sm font-medium transition-colors ${
-                        positions.includes(pos) 
-                          ? 'bg-primary text-primary-foreground' 
-                          : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'
-                      }`}
-                    >
-                      {pos}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <Button type="submit" className="w-full mt-4" disabled={positions.length === 0}>Join & Continue</Button>
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loading || positions.length === 0}
+              >
+                {loading ? 'Joining...' : 'Join & Continue'}
+              </Button>
             </form>
           </Card>
         )}

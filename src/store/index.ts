@@ -1,21 +1,8 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { supabase } from '../lib/supabase';
 
 export type Role = 'coach' | 'player' | null;
-
-export interface PlayAssignment {
-  targetId: string;
-  type: string;
-}
-
-export interface Play {
-  id: string;
-  name: string;
-  formation: string;
-  type: 'Run' | 'Pass';
-  status: 'installed' | 'draft' | 'locked';
-  assignments: Record<string, PlayAssignment>;
-  notes: string;
-}
 
 export interface User {
   id: string;
@@ -24,6 +11,16 @@ export interface User {
   height?: number;
   weight?: number;
   positions?: string[];
+}
+
+export interface Play {
+  id: string;
+  name: string;
+  formation: string;
+  type: 'Run' | 'Pass';
+  status: 'installed' | 'draft' | 'locked';
+  assignments: Record<string, any>;
+  notes: string;
 }
 
 export interface Team {
@@ -39,74 +36,391 @@ interface AppState {
   team: Team | null;
   isAuthenticated: boolean;
   isOnboarded: boolean;
-  
-  login: (name: string) => void;
-  logout: () => void;
-  setRole: (role: Role) => void;
-  createTeam: (name: string) => void;
-  joinTeam: (code: string) => boolean;
-  updateProfile: (profile: Partial<User>) => void;
-  addPlay: (play: Play) => void;
+
+  signup: (email: string, password: string, name: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
+  setRole: (role: Role) => Promise<void>;
+  createTeam: (name: string) => Promise<void>;
+  joinTeam: (code: string) => Promise<boolean>;
+  updateProfile: (profile: Partial<User>) => Promise<void>;
 }
 
-export const useStore = create<AppState>((set) => ({
-  user: null,
-  team: null,
-  isAuthenticated: false,
-  isOnboarded: false,
+async function loadTeam(teamId: string): Promise<Team | null> {
+  const { data: team, error: teamError } = await supabase
+    .from('teams')
+    .select('*')
+    .eq('id', teamId)
+    .single();
 
-  login: (name) => set({ 
-    user: { id: Math.random().toString(36).substr(2, 9), name, role: null }, 
-    isAuthenticated: true,
-    isOnboarded: false
-  }),
-  
-  logout: () => set({ user: null, team: null, isAuthenticated: false, isOnboarded: false }),
-  
-  setRole: (role) => set((state) => ({ 
-    user: state.user ? { ...state.user, role } : null 
-  })),
-  
-  createTeam: (name) => set((state) => {
-    const newTeam: Team = {
-      id: 'team_1',
-      name,
-      inviteCode: 'MEHS-12345',
-      roster: state.user ? [state.user] : [],
-      plays: [
-        { id: '1', name: 'Inside Zone Right', formation: 'Doubles', type: 'Run', status: 'installed', assignments: {}, notes: 'Standard inside zone rules. Double team 1-tech to backside backer.' }
-      ]
-    };
-    return { team: newTeam, isOnboarded: true };
-  }),
-  
-  joinTeam: (code) => {
-    let success = false;
-    set((state) => {
-      if (code === 'MEHS-12345') {
-        const mockTeam: Team = {
-          id: 'team_1',
-          name: 'MEHS Varsity',
-          inviteCode: code,
-          roster: state.user ? [{ id: 'coach_1', name: 'Coach Smith', role: 'coach' }, state.user] : [],
-          plays: [
-            { id: '1', name: 'Inside Zone Right', formation: 'Doubles', type: 'Run', status: 'installed', assignments: {}, notes: 'Standard inside zone rules.' }
-          ]
+  if (teamError || !team) {
+    throw teamError || new Error('Team not found');
+  }
+
+  const { data: members, error: membersError } = await supabase
+    .from('team_members')
+    .select('user_id')
+    .eq('team_id', teamId);
+
+  if (membersError) {
+    throw membersError;
+  }
+
+  const ids = members?.map(member => member.user_id) || [];
+
+  let roster: User[] = [];
+
+  if (ids.length > 0) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', ids);
+
+    if (error) {
+      throw error;
+    }
+
+    roster = data || [];
+  }
+
+  const { data: plays, error: playsError } = await supabase
+    .from('plays')
+    .select('*')
+    .eq('team_id', teamId);
+
+  if (playsError) {
+    throw playsError;
+  }
+
+  return {
+    id: team.id,
+    name: team.name,
+    inviteCode: team.invite_code,
+    roster,
+    plays: plays || [],
+  };
+}
+
+export const useStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      user: null,
+      team: null,
+      isAuthenticated: false,
+      isOnboarded: false,
+
+      signup: async (email, password, name) => {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+
+        if (error || !data.user) {
+          throw error || new Error('Could not create account');
+        }
+
+        const user: User = {
+          id: data.user.id,
+          name,
+          role: null,
         };
-        success = true;
-        return { team: mockTeam, isOnboarded: true };
-      }
-      return state;
-    });
-    return success;
-  },
-  
-  updateProfile: (profile) => set((state) => ({
-    user: state.user ? { ...state.user, ...profile } : null,
-    isOnboarded: true
-  })),
 
-  addPlay: (play) => set((state) => ({
-    team: state.team ? { ...state.team, plays: [...state.team.plays, play] } : null
-  }))
-}));
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert(user);
+
+        if (profileError) {
+          throw profileError;
+        }
+
+        set({
+          user,
+          team: null,
+          isAuthenticated: true,
+          isOnboarded: false,
+        });
+      },
+
+      login: async (email, password) => {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error || !data.user) {
+          throw error || new Error('Invalid login credentials');
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError || !profile) {
+          throw profileError || new Error('Profile missing');
+        }
+
+        let team: Team | null = null;
+
+        /*
+         * Coaches are connected to their team through teams.coach_id.
+         * This means the same logic works for every coach and every team.
+         */
+        if (profile.role === 'coach') {
+          const { data: coachTeam, error: coachTeamError } = await supabase
+            .from('teams')
+            .select('id')
+            .eq('coach_id', data.user.id)
+            .maybeSingle();
+
+          if (coachTeamError) {
+            throw coachTeamError;
+          }
+
+          if (coachTeam?.id) {
+            team = await loadTeam(coachTeam.id);
+          }
+        }
+
+        /*
+         * Players are connected to their team through team_members.
+         */
+        if (profile.role === 'player' && !team) {
+          const { data: membership, error: membershipError } =
+            await supabase
+              .from('team_members')
+              .select('team_id')
+              .eq('user_id', data.user.id)
+              .limit(1)
+              .maybeSingle();
+
+          if (membershipError) {
+            throw membershipError;
+          }
+
+          if (membership?.team_id) {
+            team = await loadTeam(membership.team_id);
+          }
+        }
+
+        set({
+          user: profile,
+          team,
+          isAuthenticated: true,
+          isOnboarded: !!team,
+        });
+      },
+
+      logout: async () => {
+        await supabase.auth.signOut();
+
+        set({
+          user: null,
+          team: null,
+          isAuthenticated: false,
+          isOnboarded: false,
+        });
+      },
+
+      resetPassword: async email => {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/`,
+        });
+
+        if (error) {
+          throw error;
+        }
+      },
+
+      updatePassword: async password => {
+        const { error } = await supabase.auth.updateUser({
+          password,
+        });
+
+        if (error) {
+          throw error;
+        }
+      },
+
+      setRole: async role => {
+        const user = get().user;
+
+        if (!user) {
+          throw new Error('Not authenticated');
+        }
+
+        const { error } = await supabase
+          .from('profiles')
+          .update({ role })
+          .eq('id', user.id);
+
+        if (error) {
+          throw error;
+        }
+
+        set({
+          user: {
+            ...user,
+            role,
+          },
+        });
+      },
+
+      createTeam: async name => {
+        const user = get().user;
+
+        if (!user) {
+          throw new Error('Not authenticated');
+        }
+
+        /*
+         * Prevent a returning coach from accidentally creating
+         * another team.
+         */
+        const { data: existingTeam, error: existingTeamError } =
+          await supabase
+            .from('teams')
+            .select('id')
+            .eq('coach_id', user.id)
+            .maybeSingle();
+
+        if (existingTeamError) {
+          throw existingTeamError;
+        }
+
+        if (existingTeam?.id) {
+          const existingTeamData = await loadTeam(existingTeam.id);
+
+          set({
+            team: existingTeamData,
+            isOnboarded: true,
+          });
+
+          return;
+        }
+
+        const code = `MEHS-${Math.floor(
+          10000 + Math.random() * 90000
+        )}`;
+
+        const { data, error } = await supabase
+          .from('teams')
+          .insert({
+            name,
+            invite_code: code,
+            coach_id: user.id,
+          })
+          .select()
+          .single();
+
+        if (error || !data) {
+          throw error || new Error('Could not create team');
+        }
+
+        const { error: memberError } = await supabase
+          .from('team_members')
+          .insert({
+            team_id: data.id,
+            user_id: user.id,
+          });
+
+        if (memberError) {
+          throw memberError;
+        }
+
+        const team = await loadTeam(data.id);
+
+        set({
+          team,
+          isOnboarded: true,
+        });
+      },
+
+      joinTeam: async code => {
+        const user = get().user;
+
+        if (!user) {
+          return false;
+        }
+
+        const cleanCode = code.trim().toUpperCase();
+
+        const { data: team, error } = await supabase
+          .from('teams')
+          .select('*')
+          .eq('invite_code', cleanCode)
+          .maybeSingle();
+
+        if (error || !team) {
+          return false;
+        }
+
+        const { data: existingMembership, error: membershipError } =
+          await supabase
+            .from('team_members')
+            .select('team_id')
+            .eq('user_id', user.id)
+            .limit(1)
+            .maybeSingle();
+
+        if (membershipError) {
+          throw membershipError;
+        }
+
+        if (existingMembership?.team_id) {
+          return false;
+        }
+
+        const { error: memberError } = await supabase
+          .from('team_members')
+          .insert({
+            team_id: team.id,
+            user_id: user.id,
+          });
+
+        if (memberError) {
+          return false;
+        }
+
+        const fullTeam = await loadTeam(team.id);
+
+        set({
+          team: fullTeam,
+          isOnboarded: true,
+        });
+
+        return true;
+      },
+
+      updateProfile: async profile => {
+        const user = get().user;
+
+        if (!user) {
+          throw new Error('Not authenticated');
+        }
+
+        const { error } = await supabase
+          .from('profiles')
+          .update(profile)
+          .eq('id', user.id);
+
+        if (error) {
+          throw error;
+        }
+
+        set({
+          user: {
+            ...user,
+            ...profile,
+          },
+        });
+      },
+    }),
+    {
+      name: 'mehs-ol-storage',
+    }
+  )
+);
