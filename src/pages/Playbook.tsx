@@ -13,6 +13,7 @@ export default function Playbook() {
   const [isCreating, setIsCreating] = useState(false);
   const [newPlayName, setNewPlayName] = useState('');
   const [newPlayNotes, setNewPlayNotes] = useState('');
+  const [playType, setPlayType] = useState<'Run' | 'Pass'>('Run');
   const [playAssignments, setPlayAssignments] =
     useState<Record<string, { targetId: string; type: string }>>({});
   const [saveError, setSaveError] = useState('');
@@ -26,6 +27,7 @@ export default function Playbook() {
     setEditingPlay(null);
     setNewPlayName('');
     setNewPlayNotes('');
+    setPlayType('Run');
     setPlayAssignments({});
     setSaveError('');
     setIsCreating(true);
@@ -36,6 +38,7 @@ export default function Playbook() {
     setEditingPlay(play);
     setNewPlayName(play.name);
     setNewPlayNotes(play.notes || '');
+    setPlayType(play.type || 'Run');
     setPlayAssignments(play.assignments || {});
     setSaveError('');
   };
@@ -65,7 +68,7 @@ export default function Playbook() {
         const updatedFields = {
           name: newPlayName.trim(),
           formation: editingPlay.formation || 'Pro',
-          type: editingPlay.type || 'Run',
+          type: playType,
           assignments: playAssignments,
           notes: newPlayNotes,
         };
@@ -97,7 +100,7 @@ export default function Playbook() {
           id: crypto.randomUUID(),
           name: newPlayName.trim(),
           formation: 'Pro',
-          type: 'Run',
+          type: playType,
           status: 'draft',
           assignments: playAssignments,
           notes: newPlayNotes,
@@ -152,15 +155,16 @@ export default function Playbook() {
           </div>
 
           <div className="pt-4 pb-2">
-            <h3 className="text-lg font-display font-bold mb-2">
-              Set Assignments
-            </h3>
+            <h3 className="text-lg font-display font-bold mb-2">Build the Play</h3>
+            <p className="mb-3 text-sm text-muted-foreground">Choose Run or Pass in the field editor. Set each lineman’s assignment individually, mark required defenders, add blitzes, or draw paths manually.</p>
 
             <div className="h-[500px]">
               <SimulatorCanvas
                 key={editingPlay?.id || 'new-play'}
                 initialAssignments={playAssignments}
                 onAssignmentsChange={setPlayAssignments}
+                playType={playType}
+                onPlayTypeChange={setPlayType}
               />
             </div>
           </div>
