@@ -46,6 +46,7 @@ interface AppState {
   createTeam: (name: string) => Promise<void>;
   joinTeam: (code: string) => Promise<boolean>;
   updateProfile: (profile: Partial<User>) => Promise<void>;
+  addPlay: (play: Play) => Promise<void>;
 }
 
 async function loadTeam(teamId: string): Promise<Team | null> {
@@ -99,7 +100,11 @@ async function loadTeam(teamId: string): Promise<Team | null> {
     name: team.name,
     inviteCode: team.invite_code,
     roster,
-    plays: plays || [],
+    plays: (plays || []).map((play: any) => ({
+      ...play,
+      status: play.status || 'draft',
+      assignments: play.assignments || {},
+    })),
   };
 }
 
@@ -393,6 +398,49 @@ export const useStore = create<AppState>()(
         });
 
         return true;
+      },
+
+      addPlay: async play => {
+        const { user, team } = get();
+
+        if (!user) throw new Error('You must be logged in to save a play.');
+        if (!team) throw new Error('Join or create a team before saving plays.');
+        if (user.role !== 'coach') throw new Error('Only coaches can save plays.');
+
+        const { data, error } = await supabase
+          .from('plays')
+          .insert({
+            team_id: team.id,
+            name: play.name,
+            formation: play.formation,
+            type: play.type,
+            assignments: play.assignments || {},
+            notes: play.notes || '',
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        const savedPlay: Play = {
+          id: data.id,
+          name: data.name,
+          formation: data.formation,
+          type: data.type,
+          status: 'draft',
+          assignments: data.assignments || {},
+          notes: data.notes || '',
+        };
+
+        set(state => {
+          if (!state.team || state.team.id !== team.id) return {};
+          return {
+            team: {
+              ...state.team,
+              plays: [...state.team.plays, savedPlay],
+            },
+          };
+        });
       },
 
       updateProfile: async profile => {
