@@ -3,11 +3,11 @@ import React, { useState } from 'react';
 import { Card, Button, Input } from '../components/ui';
 import { useStore, type Play } from '../store';
 import { supabase } from '../lib/supabase';
-import { BookOpen, Plus, Lock, ArrowLeft } from 'lucide-react';
+import { BookOpen, Plus, Lock, ArrowLeft, Trash2 } from 'lucide-react';
 import SimulatorCanvas from '../components/simulator/SimulatorCanvas';
 
 export default function Playbook() {
-  const { user, team, addPlay } = useStore();
+  const { user, team, addPlay, deletePlay } = useStore();
 
   const [editingPlay, setEditingPlay] = useState<Play | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -18,6 +18,8 @@ export default function Playbook() {
     useState<Record<string, any>>({});
   const [saveError, setSaveError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingPlayId, setDeletingPlayId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState('');
 
   const isCoach = user?.role === 'coach';
   const plays = team?.plays || [];
@@ -47,6 +49,23 @@ export default function Playbook() {
     setIsCreating(false);
     setEditingPlay(null);
     setSaveError('');
+  };
+
+  const handleDelete = async (play: Play) => {
+    if (!isCoach || deletingPlayId) return;
+    const confirmed = window.confirm(`Delete "${play.name}"? This permanently removes the play from your team's playbook.`);
+    if (!confirmed) return;
+
+    setDeletingPlayId(play.id);
+    setDeleteError('');
+    try {
+      await deletePlay(play.id);
+      if (editingPlay?.id === play.id) cancelEdit();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Could not delete this play.');
+    } finally {
+      setDeletingPlayId(null);
+    }
   };
 
   const handleSave = async () => {
@@ -209,6 +228,8 @@ export default function Playbook() {
         )}
       </div>
 
+      {deleteError && <p role="alert" className="text-sm text-red-500">{deleteError}</p>}
+
       {plays.length === 0 ? (
         <Card className="p-8 text-center text-muted-foreground">
           No plays have been saved yet.
@@ -260,11 +281,11 @@ export default function Playbook() {
                     {Object.values(play.assignments || {}).filter((assignment: any) => assignment?.targetId).length} linemen assigned
                   </p>
 
-                  <div className="mt-auto">
+                  <div className="mt-auto space-y-2">
                     <Button
                       variant={status === 'installed' ? 'default' : 'outline'}
                       className="w-full"
-                      disabled={locked}
+                      disabled={locked || deletingPlayId === play.id}
                       onClick={() => {
                         if (isCoach) {
                           startEdit(play);
@@ -275,6 +296,17 @@ export default function Playbook() {
                     >
                       {isCoach ? 'Edit Play' : 'Study Play'}
                     </Button>
+                    {isCoach && (
+                      <Button
+                        variant="outline"
+                        className="w-full border-red-500/40 text-red-500 hover:bg-red-500/10"
+                        disabled={deletingPlayId !== null}
+                        onClick={() => handleDelete(play)}
+                      >
+                        <Trash2 size={15} className="mr-2" />
+                        {deletingPlayId === play.id ? 'Deleting...' : 'Delete Play'}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </Card>
