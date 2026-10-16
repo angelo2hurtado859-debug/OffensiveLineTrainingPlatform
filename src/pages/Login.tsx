@@ -220,6 +220,10 @@ export default function Login() {
         )}
 
       </Card>
+
+      <p className="mt-6 text-center text-xs tracking-wide text-white/35">
+        Made by Former Monarch Angelo Hurtado
+      </p>
     </div>
   );
 }
