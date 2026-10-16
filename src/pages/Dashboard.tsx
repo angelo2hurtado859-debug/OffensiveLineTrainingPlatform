@@ -75,7 +75,7 @@ export default function Dashboard() {
       <div className="space-y-6">
         <div className="flex flex-wrap justify-between items-end gap-4">
           <div><h1 className="text-3xl font-display font-bold">Coach Dashboard</h1><p className="text-muted-foreground mt-1">Manage {team?.name || 'your team'}.</p></div>
-          <div className="flex flex-wrap items-center gap-2"><Link to="/about"><Button variant="outline" className="gap-2"><CircleHelp size={16} /> Help</Button></Link>{team?.inviteCode && <Button variant="outline" className="space-x-2" onClick={invitePlayers}><Share2 size={16} /><span>Invite Players · {team.inviteCode}</span></Button>}</div>}
+          <div className="flex flex-wrap items-center gap-2"><Link to="/about"><Button variant="outline" className="gap-2"><CircleHelp size={16} /> Help</Button></Link>{team?.inviteCode && <Button variant="outline" className="space-x-2" onClick={invitePlayers}><Share2 size={16} /><span>Invite Players · {team.inviteCode}</span></Button>}</div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
