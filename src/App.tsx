@@ -8,6 +8,9 @@ import Training from './pages/Training';
 import Quiz from './pages/Quiz';
 import Progress from './pages/Progress';
 import Rankings from './pages/Rankings';
+import AvatarStudio from './pages/AvatarStudio';
+import About from './pages/About';
+import Profile from './pages/Profile';
 import AppLayout from './components/AppLayout';
 
 const router = createBrowserRouter([
@@ -23,6 +26,9 @@ const router = createBrowserRouter([
       { path: 'quiz', element: <Quiz /> },
       { path: 'progress', element: <Progress /> },
       { path: 'rankings', element: <Rankings /> },
+      { path: 'profile', element: <Profile /> },
+      { path: 'avatar', element: <AvatarStudio /> },
+      { path: 'about', element: <About /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
