@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useStore } from '../store';
 import { Card, Button } from '../components/ui';
-import { Users, BookOpen, Target, Trophy, Share2, Activity } from 'lucide-react';
+import { Users, BookOpen, Target, Trophy, Share2, Activity, CircleHelp } from 'lucide-react';
 import { fetchPracticeAttempts, type PracticeAttempt } from '../lib/progress';
 
 export default function Dashboard() {
@@ -62,7 +62,7 @@ export default function Dashboard() {
       <div className="space-y-6">
         <div className="flex flex-wrap justify-between items-end gap-4">
           <div><h1 className="text-3xl font-display font-bold">Coach Dashboard</h1><p className="text-muted-foreground mt-1">Manage {team?.name || 'your team'}.</p></div>
-          {team?.inviteCode && <Button variant="outline" className="space-x-2" onClick={invitePlayers}><Share2 size={16} /><span>Invite Players · {team.inviteCode}</span></Button>}
+          <div className="flex flex-wrap items-center gap-2"><Button variant="outline" size="sm" onClick={() => navigate('/about')} aria-label="Help, shortcuts, and creator story" title="Help, shortcuts, and creator story"><CircleHelp size={18}/><span className="ml-2">Help</span></Button>{team?.inviteCode && <Button variant="outline" className="space-x-2" onClick={invitePlayers}><Share2 size={16} /><span>Invite Players · {team.inviteCode}</span></Button>}</div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -93,7 +93,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-3xl font-display font-bold">Welcome back, {user?.name}</h1><p className="mt-1 text-muted-foreground">{team?.name || 'No Team Assigned'}{user?.positions?.length ? ` · ${user.positions.join(', ')}` : ''}</p></div>
+      <div className="flex items-start justify-between gap-3"><div><h1 className="text-3xl font-display font-bold">Welcome back, {user?.name}</h1><p className="mt-1 text-muted-foreground">{team?.name || 'No Team Assigned'}{user?.positions?.length ? ` · ${user.positions.join(', ')}` : ''}</p></div><Button variant="outline" size="sm" onClick={() => navigate('/about')} aria-label="Help, shortcuts, and creator story" title="Help, shortcuts, and creator story"><CircleHelp size={18}/><span className="ml-2">Help</span></Button></div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard title="Recorded Reps" value={myAttempts.length} icon={Activity} />
         <StatCard title="Plays Mastered" value={`${masteredPlays}/${(team?.plays || []).filter(play => play.status !== 'locked').length}`} icon={BookOpen} />
