@@ -253,7 +253,7 @@ export default function Playbook() {
                   )}
 
                   <p className="text-xs text-muted-foreground mb-4">
-                    {Object.keys(play.assignments || {}).length} linemen assigned
+                    {Object.values(play.assignments || {}).filter((assignment: any) => assignment?.targetId).length} linemen assigned
                   </p>
 
                   <div className="mt-auto">
