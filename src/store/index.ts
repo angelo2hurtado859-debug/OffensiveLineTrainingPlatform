@@ -47,6 +47,7 @@ interface AppState {
   joinTeam: (code: string) => Promise<boolean>;
   updateProfile: (profile: Partial<User>) => Promise<void>;
   addPlay: (play: Play) => Promise<void>;
+  deletePlay: (playId: string) => Promise<void>;
 }
 
 async function loadTeam(teamId: string): Promise<Team | null> {
@@ -438,6 +439,32 @@ export const useStore = create<AppState>()(
             team: {
               ...state.team,
               plays: [...state.team.plays, savedPlay],
+            },
+          };
+        });
+      },
+
+      deletePlay: async playId => {
+        const { user, team } = get();
+
+        if (!user) throw new Error('You must be logged in to delete a play.');
+        if (!team) throw new Error('Join or create a team before deleting plays.');
+        if (user.role !== 'coach') throw new Error('Only coaches can delete plays.');
+
+        const { error } = await supabase
+          .from('plays')
+          .delete()
+          .eq('id', playId)
+          .eq('team_id', team.id);
+
+        if (error) throw error;
+
+        set(state => {
+          if (!state.team || state.team.id !== team.id) return {};
+          return {
+            team: {
+              ...state.team,
+              plays: state.team.plays.filter(play => play.id !== playId),
             },
           };
         });
