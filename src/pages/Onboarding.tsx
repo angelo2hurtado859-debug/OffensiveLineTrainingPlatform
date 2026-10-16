@@ -21,6 +21,9 @@ export default function Onboarding() {
   const [teamName, setTeamName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [height, setHeight] = useState('');
+  const [heightUnit, setHeightUnit] = useState<'cm' | 'ft-in'>('ft-in');
+  const [heightFeet, setHeightFeet] = useState('5');
+  const [heightInches, setHeightInches] = useState('10');
   const [weight, setWeight] = useState('');
   const [positions, setPositions] = useState<string[]>(['LT']);
   const [error, setError] = useState('');
@@ -83,6 +86,25 @@ export default function Onboarding() {
     }
   };
 
+  const handleHeightUnitChange = (unit: 'cm' | 'ft-in') => {
+    if (unit === heightUnit) return;
+
+    if (unit === 'cm') {
+      const totalInches = Math.max(0, Number(heightFeet || 0) * 12 + Number(heightInches || 0));
+      setHeight(totalInches ? String(Math.round(totalInches * 2.54)) : '');
+    } else {
+      const totalInches = Math.max(0, Number(height || 0) / 2.54);
+      setHeightFeet(totalInches ? String(Math.floor(totalInches / 12)) : '');
+      setHeightInches(totalInches ? String(Math.round(totalInches % 12)) : '');
+      if (totalInches && Math.round(totalInches % 12) === 12) {
+        setHeightFeet(String(Math.floor(totalInches / 12) + 1));
+        setHeightInches('0');
+      }
+    }
+
+    setHeightUnit(unit);
+  };
+
   const handlePlayerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -108,7 +130,11 @@ export default function Onboarding() {
       }
 
       await updateProfile({
-        height: height ? Number(height) : undefined,
+        height: heightUnit === 'cm'
+          ? (height ? Number(height) : undefined)
+          : (heightFeet !== '' || heightInches !== ''
+              ? Math.round((Number(heightFeet || 0) * 12 + Number(heightInches || 0)) * 2.54)
+              : undefined),
         weight: weight ? Number(weight) : undefined,
         positions,
       });
@@ -222,13 +248,52 @@ export default function Onboarding() {
                 required
               />
 
-              <Input
-                type="number"
-                value={height}
-                onChange={(e) => setHeight(e.target.value)}
-                placeholder="Height"
-                min="1"
-              />
+              <div className="space-y-2">
+                <label htmlFor="height-unit" className="block text-sm font-medium">Height units</label>
+                <select
+                  id="height-unit"
+                  value={heightUnit}
+                  onChange={(e) => handleHeightUnitChange(e.target.value as 'cm' | 'ft-in')}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="ft-in">Feet and inches (ft / in)</option>
+                  <option value="cm">Centimeters (cm)</option>
+                </select>
+                {heightUnit === 'cm' ? (
+                  <Input
+                    type="number"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value)}
+                    placeholder="Height in centimeters"
+                    min="50"
+                    max="260"
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="text-sm">Feet
+                      <Input
+                        type="number"
+                        value={heightFeet}
+                        onChange={(e) => setHeightFeet(e.target.value)}
+                        placeholder="Feet"
+                        min="2"
+                        max="8"
+                      />
+                    </label>
+                    <label className="text-sm">Inches
+                      <Input
+                        type="number"
+                        value={heightInches}
+                        onChange={(e) => setHeightInches(e.target.value)}
+                        placeholder="Inches"
+                        min="0"
+                        max="11"
+                      />
+                    </label>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">Height is saved in centimeters so the team profile can use one consistent unit.</p>
+              </div>
 
               <Input
                 type="number"
