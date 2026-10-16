@@ -15,7 +15,7 @@ export default function Playbook() {
   const [newPlayNotes, setNewPlayNotes] = useState('');
   const [playType, setPlayType] = useState<'Run' | 'Pass'>('Run');
   const [playAssignments, setPlayAssignments] =
-    useState<Record<string, { targetId: string; type: string }>>({});
+    useState<Record<string, any>>({});
   const [saveError, setSaveError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
