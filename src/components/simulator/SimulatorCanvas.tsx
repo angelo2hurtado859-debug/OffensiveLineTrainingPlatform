@@ -66,15 +66,6 @@ export default function SimulatorCanvas({
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const parsed = extractSnapshot(initialAssignments);
-    setAssignments(parsed.assignments);
-    setOffense(parsed.field?.offense || INITIAL_OFFENSE);
-    setDefense(parsed.field?.defense || INITIAL_DEFENSE);
-    setSelectedO(null);
-    setMessage('');
-  }, [initialAssignments]);
-
-  useEffect(() => {
     onAssignmentsChange?.({ ...assignments, __field: { offense, defense } });
   }, [assignments, offense, defense, onAssignmentsChange]);
 
