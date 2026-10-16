@@ -175,9 +175,9 @@ export default function Playbook() {
 
           <div className="pt-4 pb-2">
             <h3 className="text-lg font-display font-bold mb-2">Build the Play</h3>
-            <p className="mb-3 text-sm text-muted-foreground">Choose Run or Pass in the field editor. Set each lineman’s assignment individually, mark required defenders, add blitzes, or draw paths manually.</p>
+            <p className="mb-3 text-sm text-muted-foreground">Choose Run or Pass. Tap an offensive player on the field to open that player’s individual assignment controls. Use Advanced settings for defensive Ignore and Blitz options, or draw paths manually.</p>
 
-            <div className="h-[500px]">
+            <div className="h-[1250px] min-h-[1250px]">
               <SimulatorCanvas
                 key={editingPlay?.id || 'new-play'}
                 initialAssignments={playAssignments}
