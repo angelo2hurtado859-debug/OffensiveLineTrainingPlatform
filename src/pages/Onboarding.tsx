@@ -22,8 +22,8 @@ export default function Onboarding() {
   const [inviteCode, setInviteCode] = useState('');
   const [height, setHeight] = useState('');
   const [heightUnit, setHeightUnit] = useState<'cm' | 'ft-in'>('ft-in');
-  const [heightFeet, setHeightFeet] = useState('5');
-  const [heightInches, setHeightInches] = useState('10');
+  const [heightFeet, setHeightFeet] = useState('');
+  const [heightInches, setHeightInches] = useState('');
   const [weight, setWeight] = useState('');
   const [positions, setPositions] = useState<string[]>(['LT']);
   const [error, setError] = useState('');
@@ -275,7 +275,7 @@ export default function Onboarding() {
                         type="number"
                         value={heightFeet}
                         onChange={(e) => setHeightFeet(e.target.value)}
-                        placeholder="Feet"
+                        placeholder="e.g. 5"
                         min="2"
                         max="8"
                       />
@@ -285,7 +285,7 @@ export default function Onboarding() {
                         type="number"
                         value={heightInches}
                         onChange={(e) => setHeightInches(e.target.value)}
-                        placeholder="Inches"
+                        placeholder="e.g. 10"
                         min="0"
                         max="11"
                       />
