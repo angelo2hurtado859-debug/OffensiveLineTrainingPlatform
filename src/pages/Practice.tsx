@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { BookOpen, CheckCircle2, ClipboardCheck, RotateCcw, Target } from 'lucide-react';
 import { Button, Card } from '../components/ui';
 import SimulatorCanvas from '../components/simulator/SimulatorCanvas';
 import { useStore, type Play } from '../store';
-import { savePracticeAttempt, type PracticeMode } from '../lib/progress';
+import { fetchPracticeAttempts, savePracticeAttempt, type PracticeMode } from '../lib/progress';
+import { awardPracticeRewards } from '../lib/rewards';
 
 type Assignment = { targetId: string; type: string };
 const EMPTY_ASSIGNMENTS: Record<string, Assignment> = {};
@@ -18,6 +19,31 @@ export default function Practice({ mode }: { mode: PracticeMode }) {
   const [assignments, setAssignments] = useState<Record<string, Assignment>>(EMPTY_ASSIGNMENTS);
   const [feedback, setFeedback] = useState<{ correct: number; total: number; score: number } | null>(null);
   const [error, setError] = useState('');
+  const [weakestPlayId, setWeakestPlayId] = useState('');
+  const [rewardNotice, setRewardNotice] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    if (!user || plays.length === 0) return;
+    fetchPracticeAttempts({ userId: user.id }).then(attempts => {
+      if (!active) return;
+      const grouped = new Map<string, { total: number; count: number }>();
+      attempts.forEach(attempt => {
+        const row = grouped.get(attempt.playId) || { total: 0, count: 0 };
+        row.total += attempt.score;
+        row.count += 1;
+        grouped.set(attempt.playId, row);
+      });
+      const weakest = [...grouped.entries()].map(([id, row]) => ({ id, average: row.total / row.count }))
+        .filter(row => plays.some(play => play.id === row.id))
+        .sort((a, b) => a.average - b.average)[0];
+      if (weakest) {
+        setWeakestPlayId(weakest.id);
+        if (weakest.average < 80) setSelectedPlayId(weakest.id);
+      }
+    });
+    return () => { active = false; };
+  }, [user?.id, team?.id, plays.length]);
 
   const selectedPlay: Play | undefined = plays.find(play => play.id === selectedPlayId);
   const answerKey = (selectedPlay?.assignments || {}) as Record<string, Assignment>;
@@ -28,6 +54,7 @@ export default function Practice({ mode }: { mode: PracticeMode }) {
     setAssignments(EMPTY_ASSIGNMENTS);
     setFeedback(null);
     setError('');
+    setRewardNotice('');
   };
 
   const checkRep = () => {
@@ -48,8 +75,9 @@ export default function Practice({ mode }: { mode: PracticeMode }) {
     const score = Math.round((correct / total) * 100);
     setFeedback({ correct, total, score });
     if (user) {
-      savePracticeAttempt({
-        id: crypto.randomUUID(),
+      const attemptId = crypto.randomUUID();
+      void savePracticeAttempt({
+        id: attemptId,
         userId: user.id,
         userName: user.name,
         teamId: team?.id || null,
@@ -61,6 +89,9 @@ export default function Practice({ mode }: { mode: PracticeMode }) {
         score,
         completedAt: new Date().toISOString(),
       });
+      const xp = 20 + (score >= 60 ? 10 : 0) + (score >= 80 ? 20 : 0) + (score === 100 ? 20 : 0);
+      void awardPracticeRewards({ userId: user.id, userName: user.name, teamId: team?.id || null, attemptId, score })
+        .then(() => setRewardNotice('+' + xp + ' XP earned. Keep building your streak and unlock achievements in Avatar Studio.'));
     }
   };
 
@@ -98,6 +129,8 @@ export default function Practice({ mode }: { mode: PracticeMode }) {
             {selectedPlay?.notes && <p className="mt-3 text-sm text-muted-foreground">{selectedPlay.notes}</p>}
           </Card>
 
+          {weakestPlayId && selectedPlayId === weakestPlayId && <Card className="border-primary/40 bg-primary/5 p-4"><p className="font-display text-lg font-bold text-primary">Weakness-based review</p><p className="text-sm text-muted-foreground">This is currently your lowest-scoring play based on saved attempts. Repeat the assignment check and aim for 80% or higher.</p></Card>}
+
           {mode === 'training' && requiredKeys.length > 0 && (
             <Card className="p-4">
               <h2 className="font-display text-lg font-bold mb-2">Coach’s install points</h2>
@@ -117,6 +150,7 @@ export default function Practice({ mode }: { mode: PracticeMode }) {
           </div>
 
           {error && <p role="alert" className="rounded border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
+          {rewardNotice && <p role="status" className="rounded border border-primary/40 bg-primary/10 p-3 text-sm text-primary">{rewardNotice}</p>}
           {feedback && (
             <Card className="p-5 border-primary/40">
               <div className="flex items-center gap-3">

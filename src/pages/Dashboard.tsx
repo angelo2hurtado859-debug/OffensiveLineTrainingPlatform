@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useStore } from '../store';
 import { Card, Button } from '../components/ui';
-import { Users, BookOpen, Target, Trophy, Share2, Activity } from 'lucide-react';
+import { Users, BookOpen, Target, Trophy, Share2, Activity, CircleHelp, Sparkles, Flame } from 'lucide-react';
+import { Link } from 'react-router';
+import PlayerAvatar from '../components/PlayerAvatar';
+import { fetchTeamGameProfiles, loadGameProfile, type GameProfile } from '../lib/rewards';
 import { fetchPracticeAttempts, type PracticeAttempt } from '../lib/progress';
 
 export default function Dashboard() {
@@ -10,6 +13,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [attempts, setAttempts] = useState<PracticeAttempt[]>([]);
   const [loadingActivity, setLoadingActivity] = useState(true);
+  const [gameProfile, setGameProfile] = useState<GameProfile | null>(null);
+  const [teamProfiles, setTeamProfiles] = useState<GameProfile[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -21,6 +26,14 @@ export default function Dashboard() {
     });
     return () => { active = false; };
   }, [team?.id]);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) return;
+    loadGameProfile(user.id, user.name, team?.id || null).then(profile => { if (active) setGameProfile(profile); });
+    if (team?.id) fetchTeamGameProfiles(team.id).then(profiles => { if (active) setTeamProfiles(profiles); });
+    return () => { active = false; };
+  }, [user?.id, user?.name, team?.id]);
 
   const averageAccuracy = attempts.length
     ? Math.round(attempts.reduce((sum, item) => sum + item.score, 0) / attempts.length)
@@ -62,7 +75,7 @@ export default function Dashboard() {
       <div className="space-y-6">
         <div className="flex flex-wrap justify-between items-end gap-4">
           <div><h1 className="text-3xl font-display font-bold">Coach Dashboard</h1><p className="text-muted-foreground mt-1">Manage {team?.name || 'your team'}.</p></div>
-          {team?.inviteCode && <Button variant="outline" className="space-x-2" onClick={invitePlayers}><Share2 size={16} /><span>Invite Players · {team.inviteCode}</span></Button>}
+          <div className="flex flex-wrap items-center gap-2"><Link to="/about"><Button variant="outline" className="gap-2"><CircleHelp size={16} /> Help</Button></Link>{team?.inviteCode && <Button variant="outline" className="space-x-2" onClick={invitePlayers}><Share2 size={16} /><span>Invite Players · {team.inviteCode}</span></Button>}</div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -77,7 +90,7 @@ export default function Dashboard() {
             <div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-display text-xl font-bold">Team Roster</h2><Button size="sm" variant="outline" onClick={() => navigate('/rankings')}>View Rankings</Button></div>
             {playerRoster.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">No players have joined this team yet. Share the invite code to get started.</p> : <div className="space-y-3">{playerRoster.map(player => {
               const stat = playerAverages.find(item => item.id === player.id);
-              return <div key={player.id} className="flex items-center justify-between gap-3 rounded border border-border/50 bg-secondary/30 p-3"><div className="flex min-w-0 items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent font-bold">{player.name.charAt(0).toUpperCase()}</div><div className="min-w-0"><p className="truncate text-sm font-medium">{player.name}</p><p className="text-xs text-muted-foreground">{player.positions?.length ? player.positions.join(', ') : 'Positions not set'}</p></div></div><div className="text-right"><p className="font-mono text-sm text-primary">{stat ? `${stat.average}%` : '—'}</p><p className="text-xs text-muted-foreground">{stat ? `${stat.count} reps` : 'No reps yet'}</p></div></div>;
+              return <div key={player.id} className="flex items-center justify-between gap-3 rounded border border-border/50 bg-secondary/30 p-3"><div className="flex min-w-0 items-center gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent font-bold">{teamProfiles.find(profile => profile.userId === player.id) ? <PlayerAvatar avatar={teamProfiles.find(profile => profile.userId === player.id)?.avatar} size={38} /> : player.name.charAt(0).toUpperCase()}</div><div className="min-w-0"><p className="truncate text-sm font-medium">{player.name}</p><p className="text-xs text-muted-foreground">{player.positions?.length ? player.positions.join(', ') : 'Positions not set'}</p></div></div><div className="text-right"><p className="font-mono text-sm text-primary">{stat ? `${stat.average}%` : '—'}</p><p className="text-xs text-muted-foreground">{stat ? `${stat.count} reps` : 'No reps yet'}</p></div></div>;
             })}</div>}
           </Card>
           <Card className="p-6">
@@ -93,7 +106,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-3xl font-display font-bold">Welcome back, {user?.name}</h1><p className="mt-1 text-muted-foreground">{team?.name || 'No Team Assigned'}{user?.positions?.length ? ` · ${user.positions.join(', ')}` : ''}</p></div>
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-3xl font-display font-bold">Welcome back, {user?.name}</h1><p className="mt-1 text-muted-foreground">{team?.name || 'No Team Assigned'}{user?.positions?.length ? ` · ${user.positions.join(', ')}` : ''}</p></div><Link to="/about"><Button variant="outline" className="gap-2"><CircleHelp size={16} /> Help & Story</Button></Link></div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard title="Recorded Reps" value={myAttempts.length} icon={Activity} />
         <StatCard title="Plays Mastered" value={`${masteredPlays}/${(team?.plays || []).filter(play => play.status !== 'locked').length}`} icon={BookOpen} />
@@ -105,10 +118,9 @@ export default function Dashboard() {
           <h2 className="mb-2 font-display text-xl font-bold text-primary">Recommended Next Rep</h2>
           {nextPlay ? <><p className="mb-1 font-semibold">{nextPlay.name}</p><p className="mb-4 text-sm text-muted-foreground">{nextPlay.notes || 'Review your assignment rules and get your reps in.'}</p><div className="flex flex-wrap gap-2"><Button onClick={() => navigate('/training')}>Start Training</Button><Button variant="outline" onClick={() => navigate('/quiz')}>Quiz Yourself</Button></div></> : <><p className="mb-4 text-sm text-muted-foreground">Your coach has not added a play yet.</p><Button variant="outline" onClick={() => navigate('/playbook')}>Open Playbook</Button></>}
         </Card>
-        <Card className="p-6">
-          <h2 className="mb-3 font-display text-xl font-bold">Keep Improving</h2>
-          <p className="mb-4 text-sm text-muted-foreground">Complete install reps, check your assignments, and revisit plays until you score at least 80%.</p>
-          <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => navigate('/progress')}>View My Progress</Button><Button variant="outline" onClick={() => navigate('/rankings')}>Team Rankings</Button></div>
+        <Card className="p-5 sm:p-6">
+          <div className="flex items-center gap-3"><div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-primary/30 bg-secondary/50">{gameProfile ? <PlayerAvatar avatar={gameProfile.avatar} size={72} /> : <Sparkles className="text-primary" size={30} />}</div><div className="min-w-0"><h2 className="font-display text-xl font-bold">Player Identity</h2><p className="text-sm text-muted-foreground">Customize your character and earn rewards for real training.</p><div className="mt-2 flex flex-wrap gap-3 text-sm"><span className="font-semibold text-primary"><Sparkles size={14} className="mr-1 inline" />{gameProfile?.xp || 0} XP</span><span className="font-semibold"><Flame size={14} className="mr-1 inline text-orange-400" />{gameProfile?.streak || 0}-day streak</span></div></div></div>
+          <div className="mt-4 flex flex-wrap gap-2"><Button onClick={() => navigate('/avatar')}>Avatar Studio & Rewards</Button><Button variant="outline" onClick={() => navigate('/progress')}>View Progress</Button><Button variant="outline" onClick={() => navigate('/rankings')}>Team Rankings</Button></div>
         </Card>
       </div>
       <p className="text-xs text-muted-foreground">{loadingActivity ? 'Syncing your practice records…' : 'Stats are based on saved practice attempts. Shared stats require the Supabase practice_attempts table to be configured.'}</p>
